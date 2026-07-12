@@ -1,0 +1,538 @@
+﻿<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>广告创意图片打分工具</title>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif; background: #f0f2f5; color: #1a1a2e; height: 100vh; overflow: hidden; }
+.app { display: flex; flex-direction: column; height: 100vh; }
+.header { background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%); color: #fff; padding: 14px 28px; display: flex; align-items: center; justify-content: space-between; flex-shrink: 0; }
+.header h1 { font-size: 20px; font-weight: 600; letter-spacing: 1px; }
+.header h1 span { color: #ff6b35; }
+.header .subtitle { font-size: 12px; color: rgba(255,255,255,0.5); margin-top: 2px; }
+.main { display: flex; flex: 1; overflow: hidden; }
+.sidebar { width: 320px; background: #fff; border-right: 1px solid #e8e8e8; display: flex; flex-direction: column; flex-shrink: 0; overflow-y: auto; }
+.sidebar::-webkit-scrollbar { width: 4px; }
+.sidebar::-webkit-scrollbar-thumb { background: #d0d0d0; border-radius: 2px; }
+.sidebar-section { padding: 16px 18px; border-bottom: 1px solid #f0f0f0; }
+.sidebar-section:last-child { border-bottom: none; }
+.sidebar-section h3 { font-size: 13px; font-weight: 600; color: #555; margin-bottom: 12px; text-transform: uppercase; letter-spacing: 0.5px; }
+.category-selector { width: 100%; padding: 8px 12px; border: 1px solid #d9d9d9; border-radius: 6px; font-size: 14px; background: #fff; cursor: pointer; outline: none; transition: border-color 0.2s; }
+.category-selector:focus { border-color: #ff6b35; box-shadow: 0 0 0 2px rgba(255,107,53,0.15); }
+.current-category { margin-top: 8px; font-size: 12px; color: #ff6b35; font-weight: 500; }
+.slider-group { margin-bottom: 14px; }
+.slider-group:last-child { margin-bottom: 0; }
+.slider-label { display: flex; justify-content: space-between; font-size: 13px; color: #333; margin-bottom: 4px; }
+.slider-label .value { color: #ff6b35; font-weight: 600; min-width: 28px; text-align: right; }
+.slider-input { width: 100%; height: 4px; -webkit-appearance: none; appearance: none; background: #e8e8e8; border-radius: 2px; outline: none; transition: background 0.2s; }
+.slider-input::-webkit-slider-thumb { -webkit-appearance: none; width: 16px; height: 16px; border-radius: 50%; background: #ff6b35; cursor: pointer; border: 2px solid #fff; box-shadow: 0 1px 3px rgba(0,0,0,0.2); }
+.slider-input::-moz-range-thumb { width: 16px; height: 16px; border-radius: 50%; background: #ff6b35; cursor: pointer; border: 2px solid #fff; }
+.upload-area { background: #fafafa; border: 2px dashed #d9d9d9; border-radius: 8px; padding: 20px; text-align: center; cursor: pointer; transition: all 0.3s; }
+.upload-area:hover { border-color: #ff6b35; background: #fff7f2; }
+.upload-area.dragover { border-color: #ff6b35; background: #fff0e8; }
+.upload-area.paste-flash { border-color: #52c41a; background: #f6ffed; }
+.upload-area .icon { font-size: 36px; color: #bbb; margin-bottom: 8px; }
+.upload-area p { font-size: 13px; color: #888; }
+.upload-area .hint { font-size: 11px; color: #bbb; margin-top: 4px; }
+.content { flex: 1; padding: 20px 24px; overflow-y: auto; display: flex; flex-direction: column; gap: 16px; }
+.content::-webkit-scrollbar { width: 6px; }
+.content::-webkit-scrollbar-thumb { background: #d0d0d0; border-radius: 3px; }
+.empty-state { display: flex; flex-direction: column; align-items: center; justify-content: center; flex: 1; color: #bbb; }
+.empty-state .icon { font-size: 64px; margin-bottom: 16px; }
+.empty-state p { font-size: 15px; }
+.results-panel { display: flex; flex-direction: column; gap: 16px; }
+.image-card { background: #fff; border-radius: 10px; overflow: hidden; box-shadow: 0 1px 4px rgba(0,0,0,0.06); }
+.image-card .card-header { display: flex; align-items: center; gap: 12px; padding: 14px 18px; background: #fafafa; border-bottom: 1px solid #f0f0f0; }
+.image-card .card-header img { width: 48px; height: 48px; object-fit: cover; border-radius: 6px; }
+.image-card .card-header .info { flex: 1; }
+.image-card .card-header .info .name { font-size: 14px; font-weight: 600; }
+.image-card .card-header .info .dims { font-size: 11px; color: #999; }
+.image-card .card-body { padding: 16px 18px; }
+.score-grid { display: grid; grid-template-columns: repeat(5, 1fr); gap: 10px; margin-bottom: 14px; }
+.score-item { text-align: center; padding: 10px 4px; background: #f8f8f8; border-radius: 8px; }
+.score-item .label { font-size: 11px; color: #888; margin-bottom: 4px; line-height: 1.3; }
+.score-item .score { font-size: 22px; font-weight: 700; color: #1a1a2e; }
+.score-item .weight { font-size: 10px; color: #aaa; margin-top: 2px; }
+.total-score-wrap { text-align: center; padding: 12px; background: linear-gradient(135deg, #1a1a2e, #16213e); border-radius: 8px; color: #fff; margin-bottom: 14px; }
+.total-score-wrap .label { font-size: 12px; opacity: 0.7; }
+.total-score-wrap .score { font-size: 36px; font-weight: 700; letter-spacing: 1px; }
+.total-score-wrap .score .max { font-size: 16px; opacity: 0.4; }
+.suggestion-box { border-radius: 8px; padding: 14px 16px; margin-bottom: 10px; }
+.suggestion-box.match { background: #e6f7ff; border: 1px solid #91d5ff; }
+.suggestion-box.position { background: #f6ffed; border: 1px solid #b7eb8f; }
+.suggestion-box .s-title { font-size: 13px; font-weight: 600; margin-bottom: 6px; }
+.suggestion-box.match .s-title { color: #1890ff; }
+.suggestion-box.position .s-title { color: #52c41a; }
+.suggestion-box .s-body { font-size: 13px; color: #555; line-height: 1.6; }
+.suggestion-box .s-body .tag { display: inline-block; padding: 1px 8px; border-radius: 3px; font-size: 12px; font-weight: 500; margin: 0 2px; }
+.suggestion-box.match .s-body .tag { background: #bae7ff; color: #1890ff; }
+.suggestion-box.position .s-body .tag { background: #d9f7be; color: #52c41a; }
+.chart-wrap { height: 200px; margin-bottom: 10px; }
+.chart-wrap canvas { width: 100% !important; height: 100% !important; }
+.multi-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(340px, 1fr)); gap: 16px; }
+.btn { display: inline-flex; align-items: center; gap: 6px; padding: 8px 16px; border: none; border-radius: 6px; font-size: 13px; font-weight: 500; cursor: pointer; transition: all 0.2s; }
+.btn-primary { background: #ff6b35; color: #fff; }
+.btn-primary:hover { background: #e85a2a; }
+.btn-outline { background: #fff; color: #555; border: 1px solid #d9d9d9; }
+.btn-outline:hover { border-color: #ff6b35; color: #ff6b35; }
+.btn-sm { padding: 5px 12px; font-size: 12px; }
+.btn-group { display: flex; gap: 8px; margin-top: 10px; }
+.view-toggle { display: flex; background: #f0f0f0; border-radius: 6px; padding: 2px; margin-bottom: 14px; }
+.view-toggle .tab { flex: 1; text-align: center; padding: 6px 0; font-size: 13px; border-radius: 4px; cursor: pointer; color: #888; transition: all 0.2s; }
+.view-toggle .tab.active { background: #fff; color: #1a1a2e; font-weight: 600; box-shadow: 0 1px 2px rgba(0,0,0,0.08); }
+.loading-overlay { position: fixed; inset: 0; background: rgba(255,255,255,0.85); display: none; align-items: center; justify-content: center; z-index: 9999; }
+.loading-overlay.show { display: flex; }
+.spinner { width: 40px; height: 40px; border: 4px solid #e8e8e8; border-top-color: #ff6b35; border-radius: 50%; animation: spin 0.8s linear infinite; }
+@keyframes spin { to { transform: rotate(360deg); } }
+.loading-overlay .text { margin-top: 12px; font-size: 14px; color: #555; }
+@media (max-width: 900px) {
+  .main { flex-direction: column; }
+  .sidebar { width: 100%; max-height: 40vh; border-right: none; border-bottom: 1px solid #e8e8e8; }
+  .score-grid { grid-template-columns: repeat(3, 1fr); }
+  .multi-grid { grid-template-columns: 1fr; }
+}
+</style>
+</head>
+<body>
+<div class="app">
+  <div class="header">
+    <div>
+      <h1>广告创意图片<span>打分</span>工具</h1>
+      <div class="subtitle">智能素材评估 · 类目匹配 · 投放决策辅助</div>
+    </div>
+    <div style="display:flex;gap:8px;align-items:center">
+      <button class="btn btn-outline btn-sm" onclick="clearAll()" style="color:#fff;border-color:rgba(255,255,255,0.3)">清空</button>
+      <span style="font-size:12px;opacity:0.5">v2.1</span>
+    </div>
+  </div>
+  <div class="main">
+    <div class="sidebar">
+      <div class="sidebar-section">
+        <h3>图片上传</h3>
+        <div class="upload-area" id="uploadArea" ondragover="event.preventDefault();this.classList.add('dragover')" ondragleave="this.classList.remove('dragover')" ondrop="event.preventDefault();this.classList.remove('dragover');handleFiles(event.dataTransfer.files)" onclick="document.getElementById('fileInput').click()">
+          <div class="icon">🖼️</div>
+          <p>点击上传 / 拖拽 / 直接粘贴 (Ctrl+V)</p>
+          <p class="hint">支持 JPG / PNG / WebP，可多选，支持截图粘贴</p>
+        </div>
+        <input type="file" id="fileInput" accept="image/*" multiple style="display:none" onchange="handleFiles(this.files)">
+        <div class="btn-group">
+          <button class="btn btn-primary btn-sm" onclick="document.getElementById('fileInput').click()" style="flex:1">上传图片</button>
+        </div>
+      </div>
+      <div class="sidebar-section">
+        <h3>广告类目预设</h3>
+        <select class="category-selector" id="categorySelect" onchange="onCategoryChange()">
+          <option value="ecommerce">电商类目（大促/日常）</option>
+          <option value="app">App推广类目</option>
+          <option value="education">教育培训类目</option>
+          <option value="game">游戏买量类目</option>
+          <option value="beauty">美妆个护类目</option>
+          <option value="fitness">健身运动类目</option>
+          <option value="custom">自定义（手动调整）</option>
+        </select>
+        <div class="current-category" id="currentCategoryLabel">当前使用类目：电商类目</div>
+      </div>
+      <div class="sidebar-section">
+        <h3>权重微调</h3>
+        <div id="slidersContainer"></div>
+      </div>
+    </div>
+    <div class="content" id="contentArea">
+      <div class="empty-state" id="emptyState">
+        <div class="icon">📤</div>
+        <p>上传广告图片素材，开始智能评分与类目匹配分析</p>
+        <p style="font-size:12px;color:#ccc;margin-top:6px">支持多图对比，分析视觉特征与投放类目适配度</p>
+        <p style="font-size:11px;color:#ddd;margin-top:4px">💡 截图直接按 Ctrl+V 粘贴即可分析，无需保存到本地</p>
+      </div>
+      <div id="resultsArea" style="display:none">
+        <div class="view-toggle" id="viewToggle">
+          <div class="tab active" onclick="setView('single')">单图详情</div>
+          <div class="tab" onclick="setView('multi')">多图对比</div>
+        </div>
+        <div id="singleView"></div>
+        <div id="multiView" style="display:none"></div>
+      </div>
+    </div>
+  </div>
+</div>
+<div class="loading-overlay" id="loadingOverlay">
+  <div style="text-align:center">
+    <div class="spinner"></div>
+    <div class="text">正在分析图片特征...</div>
+  </div>
+</div>
+<script>
+const CATEGORY_PRESETS = {
+  ecommerce: { label: '电商类目', weights: { color: 15, subject: 20, text: 30, whitespace: 10, composition: 25 } },
+  app: { label: 'App推广类目', weights: { color: 20, subject: 30, text: 15, whitespace: 15, composition: 20 } },
+  education: { label: '教育培训类目', weights: { color: 15, subject: 20, text: 30, whitespace: 15, composition: 20 } },
+  game: { label: '游戏买量类目', weights: { color: 30, subject: 25, text: 15, whitespace: 10, composition: 20 } },
+  beauty: { label: '美妆个护类目', weights: { color: 25, subject: 20, text: 10, whitespace: 25, composition: 20 } },
+  fitness: { label: '健身运动类目', weights: { color: 20, subject: 30, text: 10, whitespace: 15, composition: 25 } },
+  custom: { label: '自定义', weights: { color: 20, subject: 25, text: 20, whitespace: 15, composition: 20 } }
+};
+const DIMS = [
+  { key: 'color', label: '色彩饱和度', icon: '🎨' },
+  { key: 'subject', label: '主体参与度', icon: '👤' },
+  { key: 'text', label: '文字覆盖率', icon: '📝' },
+  { key: 'whitespace', label: '留白比例', icon: '⬜' },
+  { key: 'composition', label: '构图规范性', icon: '📐' }
+];
+let uploadedImages = [];
+let analysisResults = [];
+let selectedIndex = 0;
+let radarCharts = {};
+
+// Paste support
+document.addEventListener('paste', function(e) {
+  var items = e.clipboardData.items;
+  var found = false;
+  for (var i = 0; i < items.length; i++) {
+    if (items[i].type.startsWith('image/')) {
+      var blob = items[i].getAsFile();
+      if (blob) {
+        found = true;
+        var file = new File([blob], 'pasted-image-' + Date.now() + '.png', { type: blob.type });
+        flashPaste();
+        handleFiles([file]);
+      }
+    }
+  }
+  if (found) e.preventDefault();
+});
+
+function flashPaste() {
+  var el = document.getElementById('uploadArea');
+  el.classList.add('paste-flash');
+  setTimeout(function() { el.classList.remove('paste-flash'); }, 600);
+}
+
+function initSliders() {
+  const container = document.getElementById('slidersContainer');
+  container.innerHTML = '';
+  const cat = document.getElementById('categorySelect').value;
+  const w = CATEGORY_PRESETS[cat].weights;
+  DIMS.forEach(dim => {
+    const val = w[dim.key];
+    const group = document.createElement('div');
+    group.className = 'slider-group';
+    group.innerHTML = '<div class="slider-label"><span>' + dim.icon + ' ' + dim.label + '</span><span class="value" id="val_' + dim.key + '">' + val + '</span></div><input type="range" class="slider-input" min="0" max="50" value="' + val + '" id="slider_' + dim.key + '" oninput="onSliderChange(\'' + dim.key + '\',this.value)">';
+    container.appendChild(group);
+  });
+}
+
+function onSliderChange(key, val) {
+  document.getElementById('val_' + key).textContent = val;
+  var cat = document.getElementById('categorySelect');
+  if (cat.value !== 'custom') { cat.value = 'custom'; }
+  updateLabel();
+  updateResults();
+}
+
+function getWeights() {
+  var w = {};
+  DIMS.forEach(function(d) { w[d.key] = parseInt(document.getElementById('slider_' + d.key).value) || 0; });
+  return w;
+}
+
+function onCategoryChange() {
+  var cat = document.getElementById('categorySelect').value;
+  var preset = CATEGORY_PRESETS[cat];
+  if (cat !== 'custom') {
+    var w = preset.weights;
+    DIMS.forEach(function(d) {
+      document.getElementById('slider_' + d.key).value = w[d.key];
+      document.getElementById('val_' + d.key).textContent = w[d.key];
+    });
+  }
+  updateLabel();
+  updateResults();
+}
+
+function updateLabel() {
+  var cat = document.getElementById('categorySelect').value;
+  document.getElementById('currentCategoryLabel').textContent = '当前使用类目：' + CATEGORY_PRESETS[cat].label;
+}
+
+function handleFiles(files) {
+  var valid = [];
+  for (var i = 0; i < files.length; i++) {
+    if (files[i].type.startsWith('image/')) valid.push(files[i]);
+  }
+  if (valid.length === 0) { alert('请上传图片文件'); return; }
+  var loaded = 0;
+  valid.forEach(function(f) {
+    var reader = new FileReader();
+    reader.onload = function(e) {
+      var img = new Image();
+      img.onload = function() {
+        uploadedImages.push({ file: f, dataUrl: e.target.result, img: img });
+        loaded++;
+        if (loaded === valid.length) runAllAnalysis();
+      };
+      img.src = e.target.result;
+    };
+    reader.readAsDataURL(f);
+  });
+}
+
+function analyzeImage(img) {
+  var canvas = document.createElement('canvas');
+  var ctx = canvas.getContext('2d');
+  var maxSize = 600;
+  var w = img.naturalWidth || img.width;
+  var h = img.naturalHeight || img.height;
+  if (w > maxSize) { h = h * maxSize / w; w = maxSize; }
+  if (h > maxSize) { w = w * maxSize / h; h = maxSize; }
+  canvas.width = Math.floor(w);
+  canvas.height = Math.floor(h);
+  ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+  var data = ctx.getImageData(0, 0, canvas.width, canvas.height).data;
+  var totalPixels = canvas.width * canvas.height;
+
+  var totalSat = 0;
+  for (var i = 0; i < data.length; i += 4) {
+    var r = data[i], g = data[i+1], b = data[i+2];
+    var max = Math.max(r, g, b), min = Math.min(r, g, b);
+    if (max === 0) continue;
+    totalSat += (max - min) / max;
+  }
+  var colorScore = Math.round(Math.min(100, (totalSat / totalPixels) * 150));
+
+  var gray = new Float32Array(totalPixels);
+  for (var i = 0; i < totalPixels; i++) {
+    var idx = i * 4;
+    gray[i] = 0.299 * data[idx] + 0.587 * data[idx+1] + 0.114 * data[idx+2];
+  }
+  var edgePixels = 0;
+  for (var y = 1; y < canvas.height - 1; y++) {
+    for (var x = 1; x < canvas.width - 1; x++) {
+      var i = y * canvas.width + x;
+      var gx = gray[i+1] - gray[i-1];
+      var gy = gray[(y+1)*canvas.width + x] - gray[(y-1)*canvas.width + x];
+      if (Math.sqrt(gx*gx + gy*gy) > 30) edgePixels++;
+    }
+  }
+  var subjectScore = Math.round(Math.min(100, (edgePixels / totalPixels) * 300));
+
+  var textPixels = 0;
+  for (var i = 0; i < totalPixels; i++) {
+    var idx = i * 4;
+    var r = data[idx], g = data[idx+1], b = data[idx+2];
+    if (Math.max(r,g,b) - Math.min(r,g,b) > 90) textPixels++;
+  }
+  var textScore = Math.round(Math.min(100, (textPixels / totalPixels) * 120));
+
+  var whitePixels = 0;
+  for (var i = 0; i < totalPixels; i++) {
+    var idx = i * 4;
+    if (data[idx] > 240 && data[idx+1] > 240 && data[idx+2] > 240) whitePixels++;
+  }
+  var whiteScore = Math.round(Math.min(100, (whitePixels / totalPixels) * 120));
+
+  var thirdX = Math.floor(canvas.width / 3), thirdY = Math.floor(canvas.height / 3);
+  var regions = [];
+  for (var ry = 0; ry < 3; ry++) {
+    for (var rx = 0; rx < 3; rx++) {
+      var sum = 0, count = 0;
+      var sx = rx * thirdX, ex = (rx === 2) ? canvas.width : (rx+1)*thirdX;
+      var sy = ry * thirdY, ey = (ry === 2) ? canvas.height : (ry+1)*thirdY;
+      for (var yy = sy; yy < ey; yy++) {
+        for (var xx = sx; xx < ex; xx++) {
+          sum += gray[yy * canvas.width + xx]; count++;
+        }
+      }
+      regions.push(sum / count);
+    }
+  }
+  var center = regions[4];
+  var other = regions.filter(function(v,i) { return i !== 4; }).reduce(function(a,b) { return a+b; }, 0) / 8;
+  var compScore = Math.round(Math.min(100, Math.abs(center - other) * 0.8));
+  return { color: colorScore, subject: subjectScore, text: textScore, whitespace: whiteScore, composition: compScore };
+}
+
+function cosineSim(a, b) {
+  var keys = Object.keys(a);
+  var dot = 0, na = 0, nb = 0;
+  for (var i = 0; i < keys.length; i++) {
+    var k = keys[i];
+    dot += a[k] * b[k]; na += a[k] * a[k]; nb += b[k] * b[k];
+  }
+  if (na === 0 || nb === 0) return 0;
+  return dot / (Math.sqrt(na) * Math.sqrt(nb));
+}
+
+function getCategoryMatch(scores) {
+  var cats = Object.entries(CATEGORY_PRESETS).filter(function(e) { return e[0] !== 'custom'; });
+  var matches = [];
+  for (var i = 0; i < cats.length; i++) {
+    var key = cats[i][0], preset = cats[i][1];
+    matches.push({ key: key, label: preset.label, similarity: cosineSim(scores, preset.weights) });
+  }
+  matches.sort(function(a,b) { return b.similarity - a.similarity; });
+  return matches.slice(0, 2);
+}
+
+function getPosition(scores) {
+  var s = scores;
+  var main = s.subject * 0.35 + s.composition * 0.30 + s.color * 0.20 + (100 - s.whitespace) * 0.10 + (100 - s.text) * 0.05;
+  var supp = s.text * 0.35 + s.whitespace * 0.25 + s.color * 0.15 + (100 - s.subject) * 0.15 + s.composition * 0.10;
+  var type = main >= supp ? 'main' : 'supp';
+  var label = type === 'main' ? '主图' : '配图';
+  var conf = Math.round((main >= supp ? main : supp) / (main + supp) * 100);
+  var reasons = [];
+  if (type === 'main') {
+    if (s.subject >= 60) reasons.push('主体突出，视觉焦点明确');
+    if (s.composition >= 60) reasons.push('构图规范，视觉引导性好');
+    if (s.color >= 60) reasons.push('色彩表现力强，吸引眼球');
+    if (s.text <= 30) reasons.push('文字信息少，适合主视觉展示');
+  } else {
+    if (s.text >= 50) reasons.push('文字信息丰富，适合承载卖点');
+    if (s.whitespace >= 50) reasons.push('留白充足，适合叠加文案');
+    if (s.color >= 50) reasons.push('色彩简洁，不喧宾夺主');
+    if (s.subject <= 40) reasons.push('主体不明显，配合主图使用更佳');
+  }
+  return { type: type, label: label, confidence: conf, reason: reasons.slice(0, 2).join('；') };
+}
+
+function calcTotal(raw, weights) {
+  var tw = 0;
+  for (var k in weights) tw += weights[k];
+  if (tw === 0) return 0;
+  var ws = 0;
+  for (var k in weights) { if (raw[k] !== undefined) ws += (raw[k] / 100) * weights[k]; }
+  return Math.round((ws / tw) * 100);
+}
+
+function runAllAnalysis() {
+  if (uploadedImages.length === 0) { alert('请先上传图片'); return; }
+  document.getElementById('loadingOverlay').classList.add('show');
+  analysisResults = [];
+  setTimeout(function() {
+    for (var i = 0; i < uploadedImages.length; i++) {
+      var item = uploadedImages[i];
+      var raw = analyzeImage(item.img);
+      var weights = getWeights();
+      var total = calcTotal(raw, weights);
+      var match = getCategoryMatch(raw);
+      var pos = getPosition(raw);
+      analysisResults.push({ index: i, name: item.file.name, raw: raw, weights: weights, total: total, match: match, position: pos });
+    }
+    document.getElementById('loadingOverlay').classList.remove('show');
+    document.getElementById('emptyState').style.display = 'none';
+    document.getElementById('resultsArea').style.display = 'block';
+    renderResults();
+  }, 300);
+}
+
+function renderResults() {
+  renderSingle();
+  renderMulti();
+}
+
+function renderSingle() {
+  var container = document.getElementById('singleView');
+  if (analysisResults.length === 0) { container.innerHTML = ''; return; }
+  var idx = Math.min(selectedIndex, analysisResults.length - 1);
+  container.innerHTML = buildCard(analysisResults[idx], true);
+  setTimeout(function() { drawRadar(analysisResults[idx]); }, 50);
+}
+
+function renderMulti() {
+  var container = document.getElementById('multiView');
+  var html = '<div class="multi-grid">';
+  for (var i = 0; i < analysisResults.length; i++) {
+    html += buildCard(analysisResults[i], false);
+  }
+  html += '</div>';
+  container.innerHTML = html;
+  setTimeout(function() {
+    for (var i = 0; i < analysisResults.length; i++) drawRadar(analysisResults[i]);
+  }, 100);
+}
+
+function buildCard(r, showNav) {
+  var item = uploadedImages[r.index];
+  var nav = '';
+  if (showNav && analysisResults.length > 1) {
+    nav = '<div style="display:flex;gap:6px;margin-left:auto"><button class="btn btn-outline btn-sm" onclick="navigate(-1)">◀ 上一张</button><button class="btn btn-outline btn-sm" onclick="navigate(1)">下一张 ▶</button></div>';
+  }
+  var dimsHtml = '';
+  for (var i = 0; i < DIMS.length; i++) {
+    var d = DIMS[i];
+    dimsHtml += '<div class="score-item"><div class="label">' + d.icon + ' ' + d.label + '</div><div class="score">' + r.raw[d.key] + '</div><div class="weight">权重 ' + r.weights[d.key] + '</div></div>';
+  }
+  var matchHtml = r.match.map(function(m) { return '<span class="tag">' + m.label + '</span>'; }).join(' 或 ');
+  var posEmoji = r.position.type === 'main' ? '⭐' : '📌';
+  return '<div class="image-card"><div class="card-header"><img src="' + item.dataUrl + '" alt=""><div class="info"><div class="name">' + r.name + ' <span style="font-size:11px;color:#999;font-weight:400">#' + (r.index+1) + '/' + analysisResults.length + '</span></div><div class="dims">' + item.img.naturalWidth + ' × ' + item.img.naturalHeight + '</div></div>' + nav + '</div><div class="card-body"><div class="score-grid">' + dimsHtml + '</div><div class="total-score-wrap"><div class="label">综合评分</div><div class="score">' + r.total + '<span class="max">/100</span></div></div><div class="chart-wrap"><canvas id="radar_' + r.index + '"></canvas></div><div class="suggestion-box match"><div class="s-title">🎯 最适配类目推荐</div><div class="s-body">这张图片的视觉特征更适合投放 ' + matchHtml + '</div></div><div class="suggestion-box position"><div class="s-title">' + posEmoji + ' 素材定位建议（主图 or 配图）</div><div class="s-body">建议作为 <span class="tag">' + r.position.label + '</span> 使用（可信度 ' + r.position.confidence + '%）' + (r.position.reason ? '——' + r.position.reason : '') + '</div></div></div></div>';
+}
+
+function drawRadar(r) {
+  var canvas = document.getElementById('radar_' + r.index);
+  if (!canvas) return;
+  if (radarCharts[r.index]) { radarCharts[r.index].destroy(); delete radarCharts[r.index]; }
+  radarCharts[r.index] = new Chart(canvas, {
+    type: 'radar',
+    data: {
+      labels: DIMS.map(function(d) { return d.label; }),
+      datasets: [{
+        label: '原始分数',
+        data: DIMS.map(function(d) { return r.raw[d.key]; }),
+        borderColor: '#ff6b35',
+        backgroundColor: 'rgba(255,107,53,0.15)',
+        pointBackgroundColor: '#ff6b35',
+        pointBorderColor: '#fff',
+        pointRadius: 4,
+        borderWidth: 2
+      }]
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      scales: { r: { beginAtZero: true, max: 100, ticks: { stepSize: 20, font: { size: 9 }, backdropColor: 'transparent' }, grid: { color: 'rgba(0,0,0,0.06)' }, angleLines: { color: 'rgba(0,0,0,0.06)' }, pointLabels: { font: { size: 11 } } } },
+      plugins: { legend: { display: false }, tooltip: { callbacks: { label: function(ctx) { return ctx.parsed.r + '分'; } } } }
+    }
+  });
+}
+
+function navigate(dir) {
+  selectedIndex = Math.max(0, Math.min(analysisResults.length - 1, selectedIndex + dir));
+  renderSingle();
+}
+
+function setView(view) {
+  var tabs = document.querySelectorAll('#viewToggle .tab');
+  tabs[0].classList.toggle('active', view === 'single');
+  tabs[1].classList.toggle('active', view === 'multi');
+  document.getElementById('singleView').style.display = view === 'single' ? 'block' : 'none';
+  document.getElementById('multiView').style.display = view === 'multi' ? 'block' : 'none';
+}
+
+function updateResults() {
+  if (analysisResults.length === 0) return;
+  var weights = getWeights();
+  for (var i = 0; i < analysisResults.length; i++) {
+    analysisResults[i].weights = weights;
+    analysisResults[i].total = calcTotal(analysisResults[i].raw, weights);
+  }
+  renderResults();
+}
+
+function clearAll() {
+  if (analysisResults.length > 0 && !confirm('确定清空所有分析结果？')) return;
+  uploadedImages = []; analysisResults = []; selectedIndex = 0;
+  document.getElementById('emptyState').style.display = 'flex';
+  document.getElementById('resultsArea').style.display = 'none';
+  document.getElementById('singleView').innerHTML = '';
+  document.getElementById('multiView').innerHTML = '';
+  for (var k in radarCharts) { if (radarCharts[k]) radarCharts[k].destroy(); }
+  radarCharts = {};
+}
+
+initSliders();
+updateLabel();
+</script>
+</body>
+</html>
